@@ -9,14 +9,22 @@ change servo state.
 import argparse
 import sys
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-import scservo_sdk as scs  # noqa: E402
+try:
+    import scservo_sdk as scs  # noqa: E402
+except ModuleNotFoundError as exc:
+    if exc.name != "serial":
+        raise
+    scs = None
+    SCS_IMPORT_ERROR = exc
+else:
+    SCS_IMPORT_ERROR = None
 
 
 DEFAULT_PORT = "/dev/serial0"
@@ -87,21 +95,39 @@ def validate_args(args: argparse.Namespace) -> None:
         raise SystemExit("--retries must be at least 1")
 
 
-def build_packet_handler(servo_type: str, port_handler: scs.PortHandler):
+def require_scservo_sdk() -> Any:
+    if SCS_IMPORT_ERROR is None:
+        return scs
+
+    print(
+        "Missing Python dependency: pyserial.\n\n"
+        "Install it on Raspberry Pi OS with one of:\n"
+        "  python3 -m pip install pyserial\n"
+        "  sudo apt install python3-serial\n\n"
+        "If you are working from this repo, installing the package also works:\n"
+        "  python3 -m pip install -e .",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+
+def build_packet_handler(servo_type: str, port_handler: Any):
+    sdk = require_scservo_sdk()
     if servo_type == "sts":
-        return scs.sms_sts(port_handler)
+        return sdk.sms_sts(port_handler)
     if servo_type == "hls":
-        return scs.hls(port_handler)
+        return sdk.hls(port_handler)
     raise ValueError(f"Unsupported servo type: {servo_type}")
 
 
 def scan_ids(packet_handler, ids: Iterable[int], retries: int) -> List[ScanResult]:
+    sdk = require_scservo_sdk()
     found: List[ScanResult] = []
 
     for servo_id in ids:
         for _ in range(retries):
             model_number, comm_result, error = packet_handler.ping(servo_id)
-            if comm_result == scs.COMM_SUCCESS:
+            if comm_result == sdk.COMM_SUCCESS:
                 found.append((servo_id, model_number, error))
                 break
 
@@ -128,8 +154,9 @@ def print_results(packet_handler, results: Sequence[ScanResult]) -> None:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
+    sdk = require_scservo_sdk()
 
-    port_handler = scs.PortHandler(args.port)
+    port_handler = sdk.PortHandler(args.port)
     packet_handler = build_packet_handler(args.servo_type, port_handler)
 
     try:
