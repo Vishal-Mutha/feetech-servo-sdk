@@ -335,6 +335,7 @@ The package includes several example scripts in the `examples/` directory:
 - `torque_control.py` - HLS torque control examples
 - `change_servo_id.py` - How to change servo IDs
 - `read_voltage.py` - Reading voltage from servos
+- `scan_motor_ids.py` - Scan a serial bus for responding servo IDs. On a Raspberry Pi Zero 2 W with Raspberry Pi OS Lite, run `python3 examples/scan_motor_ids.py --port /dev/serial0`
 - `phase_control.py` - Reading and setting servo phase values
 - `teleoperation.py` - Leader-follower arm control with voltage-based auto-detection
 - `list_ports.py` - Detect and list available servo ports
